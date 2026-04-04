@@ -193,19 +193,19 @@ impl Node {
 
   /// Returns the next sibling if it exists
   pub fn get_next_sibling(&self) -> Option<Node> {
-    let ptr = xmlNextSibling(self.node_ptr());
+    let ptr = unsafe { xmlNextSibling(self.node_ptr()) };
     self.ptr_as_option(ptr)
   }
 
   /// Returns the previous sibling if it exists
   pub fn get_prev_sibling(&self) -> Option<Node> {
-    let ptr = xmlPrevSibling(self.node_ptr());
+    let ptr = unsafe { xmlPrevSibling(self.node_ptr()) };
     self.ptr_as_option(ptr)
   }
 
   /// Returns the first child if it exists
   pub fn get_first_child(&self) -> Option<Node> {
-    let ptr = xmlGetFirstChild(self.node_ptr());
+    let ptr = unsafe { xmlGetFirstChild(self.node_ptr()) };
     self.ptr_as_option(ptr)
   }
   /// Returns the last child if it exists
@@ -221,11 +221,14 @@ impl Node {
       Some(child) => {
         let mut current_node = child;
         while !current_node.is_element_node() {
-          match current_node.get_next_sibling() { Some(sibling) => {
-            current_node = sibling;
-          } _ => {
-            break;
-          }}
+          match current_node.get_next_sibling() {
+            Some(sibling) => {
+              current_node = sibling;
+            }
+            _ => {
+              break;
+            }
+          }
         }
         if current_node.is_element_node() {
           Some(current_node)
@@ -243,11 +246,14 @@ impl Node {
       Some(child) => {
         let mut current_node = child;
         while !current_node.is_element_node() {
-          match current_node.get_prev_sibling() { Some(sibling) => {
-            current_node = sibling;
-          } _ => {
-            break;
-          }}
+          match current_node.get_prev_sibling() {
+            Some(sibling) => {
+              current_node = sibling;
+            }
+            _ => {
+              break;
+            }
+          }
         }
         if current_node.is_element_node() {
           Some(current_node)
@@ -265,11 +271,14 @@ impl Node {
       Some(child) => {
         let mut current_node = child;
         while !current_node.is_element_node() {
-          match current_node.get_next_sibling() { Some(sibling) => {
-            current_node = sibling;
-          } _ => {
-            break;
-          }}
+          match current_node.get_next_sibling() {
+            Some(sibling) => {
+              current_node = sibling;
+            }
+            _ => {
+              break;
+            }
+          }
         }
         if current_node.is_element_node() {
           Some(current_node)
@@ -287,11 +296,14 @@ impl Node {
       Some(child) => {
         let mut current_node = child;
         while !current_node.is_element_node() {
-          match current_node.get_prev_sibling() { Some(sibling) => {
-            current_node = sibling;
-          } _ => {
-            break;
-          }}
+          match current_node.get_prev_sibling() {
+            Some(sibling) => {
+              current_node = sibling;
+            }
+            _ => {
+              break;
+            }
+          }
         }
         if current_node.is_element_node() {
           Some(current_node)
@@ -325,13 +337,13 @@ impl Node {
 
   /// Returns the parent if it exists
   pub fn get_parent(&self) -> Option<Node> {
-    let ptr = xmlGetParent(self.node_ptr());
+    let ptr = unsafe { xmlGetParent(self.node_ptr()) };
     self.ptr_as_option(ptr)
   }
 
   /// Get the node type
   pub fn get_type(&self) -> Option<NodeType> {
-    NodeType::from_int(xmlGetNodeType(self.node_ptr()))
+    NodeType::from_int(unsafe { xmlGetNodeType(self.node_ptr()) })
   }
 
   /// Add a previous sibling
@@ -381,7 +393,7 @@ impl Node {
 
   /// Returns the name of the node (empty string if name pointer is `NULL`)
   pub fn get_name(&self) -> String {
-    let name_ptr = xmlNodeGetName(self.node_ptr());
+    let name_ptr = unsafe { xmlNodeGetName(self.node_ptr()) };
     if name_ptr.is_null() {
       return String::new();
     } //empty string
@@ -406,14 +418,18 @@ impl Node {
     }
     let c_string = unsafe { CStr::from_ptr(content_ptr as *const c_char) };
     let rust_utf8 = c_string.to_string_lossy().into_owned();
-    bindgenFree(content_ptr as *mut c_void);
+    unsafe {
+      bindgenFree(content_ptr as *mut c_void);
+    }
     rust_utf8
   }
 
   /// Sets the text content of this `Node`
   pub fn set_content(&mut self, content: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
     let c_content = CString::new(content).unwrap();
-    unsafe { xmlNodeSetContent(self.node_ptr_mut()?, c_content.as_bytes().as_ptr()); }
+    unsafe {
+      xmlNodeSetContent(self.node_ptr_mut()?, c_content.as_bytes().as_ptr());
+    }
     Ok(())
   }
 
@@ -426,7 +442,9 @@ impl Node {
     }
     let c_value_string = unsafe { CStr::from_ptr(value_ptr as *const c_char) };
     let prop_str = c_value_string.to_string_lossy().into_owned();
-    bindgenFree(value_ptr as *mut c_void);
+    unsafe {
+      bindgenFree(value_ptr as *mut c_void);
+    }
     Some(prop_str)
   }
 
@@ -446,7 +464,9 @@ impl Node {
     }
     let c_value_string = unsafe { CStr::from_ptr(value_ptr as *const c_char) };
     let prop_str = c_value_string.to_string_lossy().into_owned();
-    bindgenFree(value_ptr as *mut c_void);
+    unsafe {
+      bindgenFree(value_ptr as *mut c_void);
+    }
     Some(prop_str)
   }
 
@@ -459,7 +479,9 @@ impl Node {
     }
     let c_value_string = unsafe { CStr::from_ptr(value_ptr as *const c_char) };
     let prop_str = c_value_string.to_string_lossy().into_owned();
-    bindgenFree(value_ptr as *mut c_void);
+    unsafe {
+      bindgenFree(value_ptr as *mut c_void);
+    }
     Some(prop_str)
   }
 
@@ -586,7 +608,8 @@ impl Node {
         } else {
           // Propagate libxml2 failure to remove
           Err(From::from(format!(
-            "libxml2 failed to remove property with status: {remove_prop_status:?}")))
+            "libxml2 failed to remove property with status: {remove_prop_status:?}"
+          )))
         }
       } else {
         // silently no-op if asked to remove a property which is not present
@@ -616,7 +639,8 @@ impl Node {
         } else {
           // Propagate libxml2 failure to remove
           Err(From::from(format!(
-            "libxml2 failed to remove property with status: {remove_prop_status:?}")))
+            "libxml2 failed to remove property with status: {remove_prop_status:?}"
+          )))
         }
       } else {
         // silently no-op if asked to remove a property which is not present
@@ -642,7 +666,8 @@ impl Node {
       } else {
         // Propagate libxml2 failure to remove
         Err(From::from(format!(
-          "libxml2 failed to remove property with status: {remove_prop_status:?}")))
+          "libxml2 failed to remove property with status: {remove_prop_status:?}"
+        )))
       }
     } else {
       // silently no-op if asked to remove a property which is not present
@@ -721,14 +746,14 @@ impl Node {
   pub fn get_properties(&self) -> HashMap<String, String> {
     let mut attributes = HashMap::new();
 
-    let mut current_prop = xmlGetFirstProperty(self.node_ptr());
+    let mut current_prop = unsafe { xmlGetFirstProperty(self.node_ptr()) };
     while !current_prop.is_null() {
-      let name_ptr = xmlAttrName(current_prop);
+      let name_ptr = unsafe { xmlAttrName(current_prop) };
       let c_name_string = unsafe { CStr::from_ptr(name_ptr) };
       let name = c_name_string.to_string_lossy().into_owned();
       let value = self.get_property(&name).unwrap_or_default();
       attributes.insert(name, value);
-      current_prop = xmlNextPropertySibling(current_prop);
+      current_prop = unsafe { xmlNextPropertySibling(current_prop) };
     }
 
     attributes
@@ -738,12 +763,12 @@ impl Node {
   pub fn get_properties_ns(&self) -> HashMap<(String, Option<Namespace>), String> {
     let mut attributes = HashMap::new();
 
-    let mut current_prop = xmlGetFirstProperty(self.node_ptr());
+    let mut current_prop = unsafe { xmlGetFirstProperty(self.node_ptr()) };
     while !current_prop.is_null() {
-      let name_ptr = xmlAttrName(current_prop);
+      let name_ptr = unsafe { xmlAttrName(current_prop) };
       let c_name_string = unsafe { CStr::from_ptr(name_ptr) };
       let name = c_name_string.to_string_lossy().into_owned();
-      let ns_ptr = xmlAttrNs(current_prop);
+      let ns_ptr = unsafe { xmlAttrNs(current_prop) };
       if ns_ptr.is_null() {
         let value = self.get_property_no_ns(&name).unwrap_or_default();
         attributes.insert((name, None), value);
@@ -754,7 +779,7 @@ impl Node {
           .unwrap_or_default();
         attributes.insert((name, Some(ns)), value);
       }
-      current_prop = xmlNextPropertySibling(current_prop);
+      current_prop = unsafe { xmlNextPropertySibling(current_prop) };
     }
 
     attributes
@@ -772,7 +797,7 @@ impl Node {
 
   /// Gets the active namespace associated of this node
   pub fn get_namespace(&self) -> Option<Namespace> {
-    let ns_ptr = xmlNodeNs(self.node_ptr());
+    let ns_ptr = unsafe { xmlNodeNs(self.node_ptr()) };
     if ns_ptr.is_null() {
       None
     } else {
@@ -817,12 +842,12 @@ impl Node {
       return Vec::new();
     }
     let mut namespaces = Vec::new();
-    let mut ns_ptr = xmlNodeNsDeclarations(self.node_ptr());
+    let mut ns_ptr = unsafe { xmlNodeNsDeclarations(self.node_ptr()) };
     while !ns_ptr.is_null() {
-      if !xmlNsPrefix(ns_ptr).is_null() || !xmlNsHref(ns_ptr).is_null() {
+      if unsafe { !xmlNsPrefix(ns_ptr).is_null() || !xmlNsHref(ns_ptr).is_null() } {
         namespaces.push(Namespace { ns_ptr });
       }
-      ns_ptr = xmlNextNsSibling(ns_ptr);
+      ns_ptr = unsafe { xmlNextNsSibling(ns_ptr) };
     }
     namespaces
   }
@@ -886,7 +911,7 @@ impl Node {
   // TODO: Clear a future Document namespaces vec
   /// Removes the namespaces of this `Node` and it's children!
   pub fn recursively_remove_namespaces(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
-    xmlNodeRecursivelyRemoveNs(self.node_ptr_mut()?);
+    unsafe { xmlNodeRecursivelyRemoveNs(self.node_ptr_mut()?) };
     Ok(())
   }
 
@@ -1085,27 +1110,28 @@ impl Node {
       // nothing to do here, already in place
       Ok(old)
     } else if self.get_type() == Some(NodeType::ElementNode) {
-      match old.get_parent() { Some(old_parent) => {
-        if &old_parent == self {
-          // unlink new to be available for insertion
-          new.unlink();
-          // mid-child case
-          old.add_next_sibling(&mut new)?;
-          old.unlink();
-          Ok(old)
-        } else {
-          Err(From::from(format!(
-            "Old node was not a child of {:?} parent. Registered parent is {:?} instead.",
-            self.get_name(),
-            old_parent.get_name()
-          )))
+      match old.get_parent() {
+        Some(old_parent) => {
+          if &old_parent == self {
+            // unlink new to be available for insertion
+            new.unlink();
+            // mid-child case
+            old.add_next_sibling(&mut new)?;
+            old.unlink();
+            Ok(old)
+          } else {
+            Err(From::from(format!(
+              "Old node was not a child of {:?} parent. Registered parent is {:?} instead.",
+              self.get_name(),
+              old_parent.get_name()
+            )))
+          }
         }
-      } _ => {
-        Err(From::from(format!(
+        _ => Err(From::from(format!(
           "Old node was not a child of {:?} parent. No registered parent exists.",
           self.get_name()
-        )))
-      }}
+        ))),
+      }
     } else {
       Err(From::from(
         "Can only call replace_child_node an a NodeType::Element type parent.",
@@ -1119,15 +1145,15 @@ fn node_ancestors(node_ptr: xmlNodePtr) -> Vec<xmlNodePtr> {
     return Vec::new();
   }
 
-  let mut parent_ptr = xmlGetParent(node_ptr);
+  let mut parent_ptr = unsafe { xmlGetParent(node_ptr) };
 
   if parent_ptr.is_null() {
     Vec::new()
   } else {
     let mut parents = vec![parent_ptr];
 
-    while !xmlGetParent(parent_ptr).is_null() {
-      parent_ptr = xmlGetParent(parent_ptr);
+    while unsafe { !xmlGetParent(parent_ptr).is_null() } {
+      parent_ptr = unsafe { xmlGetParent(parent_ptr) };
       parents.push(parent_ptr);
     }
 

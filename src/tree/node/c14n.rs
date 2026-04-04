@@ -5,7 +5,7 @@ use std::ffi::c_void;
 use crate::{
   bindings::{xmlC14NIsVisibleCallback, xmlElementType, xmlNodePtr},
   c_helpers::xmlGetNodeType,
-  tree::{c14n::*, Node},
+  tree::{Node, c14n::*},
 };
 
 use super::node_ancestors;
@@ -29,7 +29,7 @@ unsafe extern "C" fn callback_wrapper(
   parent_ptr: xmlNodePtr,
 ) -> ::std::os::raw::c_int {
   let c14n_root_ptr = c14n_root_ptr as xmlNodePtr;
-  let node_type = xmlGetNodeType(node_ptr);
+  let node_type = unsafe { xmlGetNodeType(node_ptr) };
 
   let tn_ptr = if C14_NODE_TYPES.contains(&node_type) {
     node_ptr
@@ -40,11 +40,7 @@ unsafe extern "C" fn callback_wrapper(
   let tn_ancestors = node_ancestors(tn_ptr);
 
   let ret = (tn_ptr == c14n_root_ptr) || tn_ancestors.contains(&c14n_root_ptr);
-  if ret {
-    1
-  } else {
-    0
-  }
+  if ret { 1 } else { 0 }
 }
 
 const C14_NODE_TYPES: [xmlElementType; 7] = [

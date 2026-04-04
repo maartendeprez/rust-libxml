@@ -6,9 +6,9 @@ use std::str;
 
 use crate::bindings::*;
 use crate::c_helpers::*;
+use crate::tree::Document;
 use crate::tree::namespace::Namespace;
 use crate::tree::nodetype::NodeType;
-use crate::tree::Document;
 use crate::xpath::Context;
 
 /// Lightweight struct for read-only parallel processing
@@ -35,19 +35,19 @@ impl RoNode {
 
   /// Returns the next sibling if it exists
   pub fn get_next_sibling(self) -> Option<RoNode> {
-    let ptr = xmlNextSibling(self.0);
+    let ptr = unsafe { xmlNextSibling(self.0) };
     self.ptr_as_option(ptr)
   }
 
   /// Returns the previous sibling if it exists
   pub fn get_prev_sibling(self) -> Option<RoNode> {
-    let ptr = xmlPrevSibling(self.0);
+    let ptr = unsafe { xmlPrevSibling(self.0) };
     self.ptr_as_option(ptr)
   }
 
   /// Returns the first child if it exists
   pub fn get_first_child(self) -> Option<RoNode> {
-    let ptr = xmlGetFirstChild(self.0);
+    let ptr = unsafe { xmlGetFirstChild(self.0) };
     self.ptr_as_option(ptr)
   }
 
@@ -168,13 +168,13 @@ impl RoNode {
 
   /// Returns the parent if it exists
   pub fn get_parent(self) -> Option<RoNode> {
-    let ptr = xmlGetParent(self.0);
+    let ptr = unsafe { xmlGetParent(self.0) };
     self.ptr_as_option(ptr)
   }
 
   /// Get the node type
   pub fn get_type(self) -> Option<NodeType> {
-    NodeType::from_int(xmlGetNodeType(self.0))
+    NodeType::from_int(unsafe { xmlGetNodeType(self.0) })
   }
 
   /// Returns true if it is a text node
@@ -194,7 +194,7 @@ impl RoNode {
 
   /// Returns the name of the node (empty string if name pointer is `NULL`)
   pub fn get_name(self) -> String {
-    let name_ptr = xmlNodeGetName(self.0);
+    let name_ptr = unsafe { xmlNodeGetName(self.0) };
     if name_ptr.is_null() {
       return String::new();
     } //empty string
@@ -212,7 +212,7 @@ impl RoNode {
     }
     let c_string = unsafe { CStr::from_ptr(content_ptr as *const c_char) };
     let rust_utf8 = c_string.to_string_lossy().into_owned();
-    bindgenFree(content_ptr as *mut c_void);
+    unsafe { bindgenFree(content_ptr as *mut c_void) };
     rust_utf8
   }
 
@@ -225,7 +225,7 @@ impl RoNode {
     }
     let c_value_string = unsafe { CStr::from_ptr(value_ptr as *const c_char) };
     let prop_str = c_value_string.to_string_lossy().into_owned();
-    bindgenFree(value_ptr as *mut c_void);
+    unsafe { bindgenFree(value_ptr as *mut c_void) };
     Some(prop_str)
   }
 
@@ -240,7 +240,7 @@ impl RoNode {
     }
     let c_value_string = unsafe { CStr::from_ptr(value_ptr as *const c_char) };
     let prop_str = c_value_string.to_string_lossy().into_owned();
-    bindgenFree(value_ptr as *mut c_void);
+    unsafe { bindgenFree(value_ptr as *mut c_void) };
     Some(prop_str)
   }
 
@@ -253,7 +253,7 @@ impl RoNode {
     }
     let c_value_string = unsafe { CStr::from_ptr(value_ptr as *const c_char) };
     let prop_str = c_value_string.to_string_lossy().into_owned();
-    bindgenFree(value_ptr as *mut c_void);
+    unsafe { bindgenFree(value_ptr as *mut c_void) };
     Some(prop_str)
   }
 
@@ -316,14 +316,14 @@ impl RoNode {
   pub fn get_properties(self) -> HashMap<String, String> {
     let mut attributes = HashMap::new();
 
-    let mut current_prop = xmlGetFirstProperty(self.0);
+    let mut current_prop = unsafe { xmlGetFirstProperty(self.0) };
     while !current_prop.is_null() {
-      let name_ptr = xmlAttrName(current_prop);
+      let name_ptr = unsafe { xmlAttrName(current_prop) };
       let c_name_string = unsafe { CStr::from_ptr(name_ptr) };
       let name = c_name_string.to_string_lossy().into_owned();
       let value = self.get_property(&name).unwrap_or_default();
       attributes.insert(name, value);
-      current_prop = xmlNextPropertySibling(current_prop);
+      current_prop = unsafe { xmlNextPropertySibling(current_prop) };
     }
 
     attributes
@@ -333,12 +333,12 @@ impl RoNode {
   pub fn get_properties_ns(self) -> HashMap<(String, Option<Namespace>), String> {
     let mut attributes = HashMap::new();
 
-    let mut current_prop = xmlGetFirstProperty(self.0);
+    let mut current_prop = unsafe { xmlGetFirstProperty(self.0) };
     while !current_prop.is_null() {
-      let name_ptr = xmlAttrName(current_prop);
+      let name_ptr = unsafe { xmlAttrName(current_prop) };
       let c_name_string = unsafe { CStr::from_ptr(name_ptr) };
       let name = c_name_string.to_string_lossy().into_owned();
-      let ns_ptr = xmlAttrNs(current_prop);
+      let ns_ptr = unsafe { xmlAttrNs(current_prop) };
       if ns_ptr.is_null() {
         let value = self.get_property_no_ns(&name).unwrap_or_default();
         attributes.insert((name, None), value);
@@ -349,7 +349,7 @@ impl RoNode {
           .unwrap_or_default();
         attributes.insert((name, Some(ns)), value);
       }
-      current_prop = xmlNextPropertySibling(current_prop);
+      current_prop = unsafe { xmlNextPropertySibling(current_prop) };
     }
 
     attributes
@@ -405,7 +405,7 @@ impl RoNode {
 
   /// Gets the active namespace associated of this node
   pub fn get_namespace(self) -> Option<Namespace> {
-    let ns_ptr = xmlNodeNs(self.0);
+    let ns_ptr = unsafe { xmlNodeNs(self.0) };
     if ns_ptr.is_null() {
       None
     } else {
@@ -449,12 +449,12 @@ impl RoNode {
       return Vec::new();
     }
     let mut namespaces = Vec::new();
-    let mut ns_ptr = xmlNodeNsDeclarations(self.0);
+    let mut ns_ptr = unsafe { xmlNodeNsDeclarations(self.0) };
     while !ns_ptr.is_null() {
-      if !xmlNsPrefix(ns_ptr).is_null() || !xmlNsHref(ns_ptr).is_null() {
+      if unsafe { !xmlNsPrefix(ns_ptr).is_null() || !xmlNsHref(ns_ptr).is_null() } {
         namespaces.push(Namespace { ns_ptr });
       }
-      ns_ptr = xmlNextNsSibling(ns_ptr);
+      ns_ptr = unsafe { xmlNextNsSibling(ns_ptr) };
     }
     namespaces
   }

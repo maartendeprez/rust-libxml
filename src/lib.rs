@@ -5,9 +5,9 @@
 #![deny(missing_docs)]
 // Our new methods return Result<Self, _> types
 #![allow(clippy::new_ret_no_self, clippy::result_unit_err)]
-/// Bindings to the C interface
-pub mod bindings;
-mod c_helpers;
+
+pub use libxml_sys::bindings;
+pub(crate) use libxml_sys::c_helpers;
 
 /// XML and HTML parsing
 pub mod parser;

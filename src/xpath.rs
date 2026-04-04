@@ -90,11 +90,7 @@ impl Context {
         c_prefix.as_bytes().as_ptr(),
         c_href.as_bytes().as_ptr(),
       );
-      if result != 0 {
-        Err(())
-      } else {
-        Ok(())
-      }
+      if result != 0 { Err(()) } else { Ok(()) }
     }
   }
 
@@ -195,7 +191,7 @@ impl Drop for Object {
 impl Object {
   ///get the number of nodes in the result set
   pub fn get_number_of_nodes(&self) -> usize {
-    let v = xmlXPathObjectNumberOfNodes(self.ptr);
+    let v = unsafe { xmlXPathObjectNumberOfNodes(self.ptr) };
     if v == -1 {
       panic!("rust-libxml: xpath: Passed in null pointer!");
     }
@@ -214,7 +210,7 @@ impl Object {
     let n = self.get_number_of_nodes();
     let mut vec: Vec<Node> = Vec::with_capacity(n);
     let slice = if n > 0 {
-      xmlXPathObjectGetNodes(self.ptr, n as size_t)
+      unsafe { xmlXPathObjectGetNodes(self.ptr, n as size_t) }
     } else {
       Vec::new()
     };
@@ -233,7 +229,7 @@ impl Object {
     let n = self.get_number_of_nodes();
     let mut vec: Vec<RoNode> = Vec::with_capacity(n);
     let slice = if n > 0 {
-      xmlXPathObjectGetNodes(self.ptr, n as size_t)
+      unsafe { xmlXPathObjectGetNodes(self.ptr, n as size_t) }
     } else {
       Vec::new()
     };
@@ -251,7 +247,7 @@ impl Object {
     let n = self.get_number_of_nodes();
     let mut vec: Vec<String> = Vec::with_capacity(n);
     let slice = if n > 0 {
-      xmlXPathObjectGetNodes(self.ptr, n as size_t)
+      unsafe { xmlXPathObjectGetNodes(self.ptr, n as size_t) }
     } else {
       Vec::new()
     };
@@ -262,12 +258,13 @@ impl Object {
       let value_ptr = unsafe { xmlXPathCastNodeToString(ptr) };
       let c_value_string = unsafe { CStr::from_ptr(value_ptr as *const c_char) };
       let ready_str = c_value_string.to_string_lossy().into_owned();
-      bindgenFree(value_ptr as *mut c_void);
+      unsafe {
+        bindgenFree(value_ptr as *mut c_void);
+      }
       vec.push(ready_str);
     }
     vec
   }
-
 }
 
 impl fmt::Display for Object {
@@ -292,7 +289,9 @@ pub fn is_well_formed_xpath(xpath: &str) -> bool {
   if xml_xpath_comp_expr_ptr.is_null() {
     false
   } else {
-    bindgenFree(xml_xpath_comp_expr_ptr as *mut c_void);
+    unsafe {
+      bindgenFree(xml_xpath_comp_expr_ptr as *mut c_void);
+    }
     true
   }
 }
