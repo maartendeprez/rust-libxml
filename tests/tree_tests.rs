@@ -15,17 +15,23 @@ fn child_of_root_has_different_hash() {
     let doc = doc_result.unwrap();
     let root = doc.get_root_element().unwrap();
     assert!(!root.is_text_node());
-    match root.get_first_child() { Some(child) => {
-      assert!(root != child);
-    } _ => {
-      assert!(false); //test failed - child doesn't exist
-    }}
+    match root.get_first_child() {
+      Some(child) => {
+        assert!(root != child);
+      }
+      _ => {
+        panic!("test failed - child doesn't exist");
+      }
+    }
     // same check with last child
-    match root.get_last_child() { Some(child) => {
-      assert!(root != child);
-    } _ => {
-      assert!(false); //test failed - child doesn't exist
-    }}
+    match root.get_last_child() {
+      Some(child) => {
+        assert!(root != child);
+      }
+      _ => {
+        panic!("test failed - child doesn't exist");
+      }
+    }
   }
 }
 
@@ -84,7 +90,7 @@ fn node_attributes_accessor() {
   assert_eq!(attributes.get("attribute"), Some(&"value".to_string()));
 
   // Has
-  assert_eq!(child.has_attribute("attribute"), true);
+  assert!(child.has_attribute("attribute"));
   // Get
   assert_eq!(child.get_attribute("attribute"), Some("value".to_string()));
   // Get as node
@@ -103,7 +109,7 @@ fn node_attributes_accessor() {
   // Remove
   assert!(child.remove_attribute("attribute").is_ok());
   assert_eq!(child.get_attribute("attribute"), None);
-  assert_eq!(child.has_attribute("attribute"), false);
+  assert!(!child.has_attribute("attribute"));
   // Recount
   let attributes = child.get_attributes();
   assert_eq!(attributes.len(), 0);
@@ -185,9 +191,11 @@ fn node_attributes_ns_accessor() {
     child.get_attribute_no_ns("attribute"),
     Some("setter_value".to_string())
   );
-  assert!(child
-    .set_attribute_ns("attribute", "foo_value", &foo_ns)
-    .is_ok());
+  assert!(
+    child
+      .set_attribute_ns("attribute", "foo_value", &foo_ns)
+      .is_ok()
+  );
   assert_eq!(
     child.get_attribute_no_ns("attribute"),
     Some("setter_value".to_string())
@@ -281,9 +289,11 @@ fn attribute_namespace_accessors() {
     element.get_attribute_ns("fb", "http://www.foobar.org"),
     Some("fb".to_string())
   );
-  assert!(element
-    .remove_attribute_ns("fb", "http://www.foobar.org")
-    .is_ok());
+  assert!(
+    element
+      .remove_attribute_ns("fb", "http://www.foobar.org")
+      .is_ok()
+  );
   assert_eq!(
     element.get_attribute_ns("fb", "http://www.foobar.org"),
     None
@@ -424,13 +434,13 @@ fn can_manage_attributes() {
   let pre_value = hello_element.get_attribute(key);
   assert_eq!(pre_value, None);
   let pre_prop_check = hello_element.has_property(key);
-  assert_eq!(pre_prop_check, false);
+  assert!(!pre_prop_check);
   let pre_prop_value = hello_element.get_property(key);
   assert_eq!(pre_prop_value, None);
 
   assert!(hello_element.set_attribute(key, value).is_ok());
   let new_check = hello_element.has_attribute(key);
-  assert_eq!(new_check, true);
+  assert!(new_check);
   let new_value = hello_element.get_attribute(key);
   assert_eq!(new_value, Some(value.to_owned()));
 }
@@ -573,9 +583,11 @@ fn can_replace_child() {
 
   // fail to replace a, as it is already removed.
   let none = Node::new("none", None, &doc).unwrap();
-  assert!(root_node
-    .replace_child_node(none, a_result.unwrap())
-    .is_err());
+  assert!(
+    root_node
+      .replace_child_node(none, a_result.unwrap())
+      .is_err()
+  );
   // no change.
   assert_eq!(
     doc.to_string(),

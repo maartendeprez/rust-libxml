@@ -31,15 +31,21 @@ fn xpath_with_namespaces() {
 
   let doc = doc_result.unwrap();
   let context = Context::new(&doc).unwrap();
-  assert!(context
-    .register_namespace("h", "http://example.com/ns/hello")
-    .is_ok());
-  assert!(context
-    .register_namespace("f", "http://example.com/ns/farewell")
-    .is_ok());
-  assert!(context
-    .register_namespace("r", "http://example.com/ns/root")
-    .is_ok());
+  assert!(
+    context
+      .register_namespace("h", "http://example.com/ns/hello")
+      .is_ok()
+  );
+  assert!(
+    context
+      .register_namespace("f", "http://example.com/ns/farewell")
+      .is_ok()
+  );
+  assert!(
+    context
+      .register_namespace("r", "http://example.com/ns/root")
+      .is_ok()
+  );
   let result_h_td = context.evaluate("//h:td").unwrap();
   assert_eq!(result_h_td.get_number_of_nodes(), 3);
   assert_eq!(result_h_td.get_nodes_as_vec().len(), 3);
@@ -190,7 +196,7 @@ fn cleanup_safely_unlinked_xpath_nodes() {
   }
   drop(xpath);
   drop(doc);
-  assert!(true, "Drops went OK.");
+  // Drops went OK.
 }
 
 #[test]
@@ -200,20 +206,27 @@ fn xpath_find_string_values() {
   assert!(doc_result.is_ok());
   let doc = doc_result.unwrap();
   let mut xpath = libxml::xpath::Context::new(&doc).unwrap();
-  match doc.get_root_element() { Some(root) => {
-    let tests = root.get_child_elements();
-    let empty_test = &tests[0];
-    let ids_test = &tests[1];
-    let empty_values = xpath.findvalues(".//@xml:id", Some(empty_test));
-    assert_eq!(empty_values, Ok(Vec::new()));
-    let ids_values = xpath.findvalues(".//@xml:id", Some(ids_test));
-    let expected_ids = Ok(vec![String::from("start"),String::from("mid"),String::from("end")]);
-    assert_eq!(ids_values, expected_ids);
-    let node_ids_values = ids_test.findvalues(".//@xml:id");
-    assert_eq!(node_ids_values, expected_ids);
-  } _ => {
-    panic!("Document fails to obtain root!");
-  }}
+  match doc.get_root_element() {
+    Some(root) => {
+      let tests = root.get_child_elements();
+      let empty_test = &tests[0];
+      let ids_test = &tests[1];
+      let empty_values = xpath.findvalues(".//@xml:id", Some(empty_test));
+      assert_eq!(empty_values, Ok(Vec::new()));
+      let ids_values = xpath.findvalues(".//@xml:id", Some(ids_test));
+      let expected_ids = Ok(vec![
+        String::from("start"),
+        String::from("mid"),
+        String::from("end"),
+      ]);
+      assert_eq!(ids_values, expected_ids);
+      let node_ids_values = ids_test.findvalues(".//@xml:id");
+      assert_eq!(node_ids_values, expected_ids);
+    }
+    _ => {
+      panic!("Document fails to obtain root!");
+    }
+  }
 }
 
 /// Tests for checking xpath well-formedness
@@ -223,12 +236,12 @@ mod compile_tests {
   #[test]
   fn can_compile_an_xpath() {
     let compiles = is_well_formed_xpath("//a");
-    assert_eq!(compiles, true);
+    assert!(compiles);
   }
 
   #[test]
   fn invalid_xpath_does_not_compile() {
     let compiles = is_well_formed_xpath("//a[but invalid]");
-    assert_eq!(compiles, false);
+    assert!(!compiles);
   }
 }
