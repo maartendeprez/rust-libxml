@@ -1,6 +1,6 @@
 use std::{
   ffi::{CStr, c_void},
-  fmt::Display,
+  fmt::{Debug, Display},
   ops::Deref,
 };
 
@@ -44,9 +44,27 @@ impl XmlString {
   }
 }
 
+impl PartialEq<Self> for XmlString {
+  fn eq(&self, other: &Self) -> bool {
+    self.deref() == other.deref()
+  }
+}
+
+impl PartialEq<str> for XmlString {
+  fn eq(&self, other: &str) -> bool {
+    self.deref() == other
+  }
+}
+
 impl Display for XmlString {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "{}", self.deref())
+  }
+}
+
+impl Debug for XmlString {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "XmlString({:?})", self.deref())
   }
 }
 

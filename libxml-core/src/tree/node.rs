@@ -5,12 +5,13 @@ use std::{
 };
 
 use libxml_sys::bindings::{
-  xmlFreeNode, xmlGetLastChild, xmlGetNoNsProp, xmlGetNsList, xmlGetNsProp, xmlGetProp,
-  xmlHasNsProp, xmlHasProp, xmlNode, xmlNodeGetContent, xmlNodePtr, xmlSearchNs, xmlSearchNsByHref,
+  xmlAddPrevSibling, xmlChar, xmlFreeNode, xmlGetLastChild, xmlGetNoNsProp, xmlGetNsList,
+  xmlGetNsProp, xmlGetProp, xmlHasNsProp, xmlHasProp, xmlNewDocNode, xmlNode, xmlNodeGetContent,
+  xmlRemoveProp, xmlSearchNs, xmlSearchNsByHref, xmlSetProp,
 };
 
 use crate::{
-  error::Result,
+  error::{Error, Result},
   list::XmlList,
   macros::define_wrapper_types,
   string::{XmlString, maybe_str_from_xml_str},
@@ -44,17 +45,48 @@ impl Eq for Node {}
 impl Eq for NodeRef {}
 
 impl Node {
-  /// Immutably borrows the underlying libxml2 `xmlNodePtr` pointer
-  #[deprecated(note = "use RoNode::as_ptr")]
-  pub fn node_ptr(&self) -> xmlNodePtr {
-    self.as_ptr()
+  pub fn new(
+    doc: &DocumentRef,
+    ns: Option<&NamespaceRef>,
+    name: &str,
+    content: Option<&str>,
+  ) -> Result<Self> {
+    let name = CString::new(name).unwrap();
+    let content = content.map(|s| CString::new(s).unwrap());
+
+    unsafe {
+      let node_ptr = xmlNewDocNode(
+        doc.as_ptr(),
+        ns.map_or(std::ptr::null_mut(), |ns| ns.as_ptr()),
+        name.as_ptr() as *const xmlChar,
+        content.map_or(std::ptr::null(), |s| s.as_ptr() as *const xmlChar),
+      );
+      Self::maybe_from_ptr(node_ptr).ok_or(Error::Tree)
+    }
   }
 }
 
 impl NodeRef {
+  pub fn add_prev_sibling(&mut self, elem: Node) -> Result<&NodeRef> {
+    unsafe {
+      let ptr = xmlAddPrevSibling(self.as_ptr(), elem.as_ptr());
+      if !ptr.is_null() {
+        std::mem::forget(elem);
+        Ok(NodeRef::from_ptr(ptr))
+      } else {
+        Err(Error::Tree)
+      }
+    }
+  }
+
   /// Returns the next sibling if it exists
   pub fn get_next_sibling(&self) -> Option<&Self> {
     unsafe { Self::maybe_from_ptr(self.0.next) }
+  }
+
+  /// Returns the next sibling if it exists
+  pub fn get_next_sibling_mut(&mut self) -> Option<&mut Self> {
+    unsafe { Self::maybe_from_ptr_mut(self.0.next) }
   }
 
   /// Returns the previous sibling if it exists
@@ -62,14 +94,38 @@ impl NodeRef {
     unsafe { Self::maybe_from_ptr(self.0.prev) }
   }
 
+  /// Returns the previous sibling if it exists
+  pub fn get_prev_sibling_mut(&mut self) -> Option<&mut Self> {
+    unsafe { Self::maybe_from_ptr_mut(self.0.prev) }
+  }
+
   /// Returns the first child if it exists
   pub fn get_first_child(&self) -> Option<&Self> {
     unsafe { Self::maybe_from_ptr(self.0.children) }
   }
 
+  /// Returns the first child if it exists
+  pub fn get_first_child_mut(&mut self) -> Option<&mut Self> {
+    unsafe { Self::maybe_from_ptr_mut(self.0.children) }
+  }
+
+  /// Returns the first child element if it exists
+  pub fn get_first_child_element_mut(&mut self) -> Option<&mut Self> {
+    let mut child = self.get_first_child_mut()?;
+    while !child.is_element_node() {
+      child = child.get_next_sibling_mut()?;
+    }
+    Some(child)
+  }
+
   /// Returns the last child if it exists
   pub fn get_last_child(&self) -> Option<&Self> {
     unsafe { Self::maybe_from_ptr(xmlGetLastChild(self.as_ptr())) }
+  }
+
+  /// Returns the last child if it exists
+  pub fn get_last_child_mut(&mut self) -> Option<&mut Self> {
+    unsafe { Self::maybe_from_ptr_mut(xmlGetLastChild(self.as_ptr())) }
   }
 
   /// Iterate over next siblings
@@ -113,6 +169,40 @@ impl NodeRef {
     std::iter::successors(self.get_first_child(), |node| node.get_next_sibling())
   }
 
+  // This provides split borrows (exclusive references to multiple children with
+  // overlapping lifetimes), and is therefore incompatible with providing
+  // methods like `get_parent_mut` and `get_next_sibling_mut`. Providing both
+  // would allow obtaining multiple "exclusive" references to the same node at
+  // the same time.
+
+  //  pub fn iter_child_nodes_mut(&mut self) -> impl
+  //    Iterator<Item = &mut Self> { struct IterMut<'a>(Option<&'a mut NodeRef>);
+
+  //   impl<'a> Iterator for IterMut<'a> {
+  //     type Item = &'a mut NodeRef;
+
+  //     fn next(&mut self) -> Option<Self::Item> {
+  //       let cur = self.0.take()?;
+  //       self.0 = unsafe { NodeRef::maybe_from_ptr_mut(cur.0.next) };
+  //       Some(cur)
+  //     }
+  //   }
+
+  //   IterMut(self.get_first_child_mut())
+  // }
+
+  pub fn iter_child_elements(&self) -> impl Iterator<Item = &NodeRef> {
+    self
+      .iter_child_nodes()
+      .filter(|node| node.is_element_node())
+  }
+
+  // pub fn iter_child_elements_mut(&mut self) -> impl Iterator<Item = &mut NodeRef> {
+  //   self
+  //     .iter_child_nodes_mut()
+  //     .filter(|node| node.is_element_node())
+  // }
+
   /// Returns all child nodes of the given node as a vector
   pub fn get_child_nodes(&self) -> Vec<&Self> {
     self.iter_child_nodes().collect()
@@ -120,10 +210,7 @@ impl NodeRef {
 
   /// Returns all child elements of the given node as a vector
   pub fn get_child_elements(&self) -> Vec<&Self> {
-    self
-      .iter_child_nodes()
-      .filter(|node| node.is_element_node())
-      .collect()
+    self.iter_child_elements().collect()
   }
 
   /// Returns the parent if it exists
@@ -214,6 +301,15 @@ impl NodeRef {
     }
   }
 
+  /// Return an attribute as a `Node` struct of type AttributeNode
+  pub fn get_property_node_mut(&mut self, name: &str) -> Option<&mut AttrRef> {
+    let c_name = CString::new(name).unwrap();
+    unsafe {
+      let attr_node = xmlHasProp(self.as_ptr(), c_name.as_bytes().as_ptr());
+      AttrRef::maybe_from_ptr_mut(attr_node)
+    }
+  }
+
   /// Return an attribute in a namespace `ns` as a `Node` of type AttributeNode
   pub fn get_property_node_ns(&self, name: &str, ns: &str) -> Option<&AttrRef> {
     let c_name = CString::new(name).unwrap();
@@ -237,34 +333,29 @@ impl NodeRef {
     }
   }
 
-  /// Alias for get_property
-  pub fn get_attribute(&self, name: &str) -> Option<XmlString> {
-    self.get_property(name)
+  pub fn set_property(&mut self, name: &str, value: &str) -> Result<&AttrRef> {
+    let name = CString::new(name).unwrap();
+    let value = CString::new(value).unwrap();
+
+    unsafe {
+      let attr_ptr = xmlSetProp(
+        self.as_ptr(),
+        name.as_ptr() as *const xmlChar,
+        value.as_ptr() as *const xmlChar,
+      );
+      AttrRef::maybe_from_ptr(attr_ptr).ok_or(Error::Tree)
+    }
   }
 
-  /// Alias for get_property_ns
-  pub fn get_attribute_ns(&self, name: &str, ns: &str) -> Option<XmlString> {
-    self.get_property_ns(name, ns)
-  }
-
-  /// Alias for get_property_no_ns
-  pub fn get_attribute_no_ns(&self, name: &str) -> Option<XmlString> {
-    self.get_property_no_ns(name)
-  }
-
-  /// Alias for get_property_node
-  pub fn get_attribute_node(&self, name: &str) -> Option<&AttrRef> {
-    self.get_property_node(name)
-  }
-
-  /// Alias for get_property_node_ns
-  pub fn get_attribute_node_ns(&self, name: &str, ns: &str) -> Option<&AttrRef> {
-    self.get_property_node_ns(name, ns)
-  }
-
-  /// Alias for get_property_node_no_ns
-  pub fn get_attribute_node_no_ns(&self, name: &str) -> Option<&AttrRef> {
-    self.get_property_node_no_ns(name)
+  pub fn remove_property(&mut self, name: &str) -> Result<()> {
+    if let Some(attr) = self.get_property_node_mut(name) {
+      unsafe {
+        (xmlRemoveProp(attr.as_ptr()) == 0)
+          .then_some(())
+          .ok_or(Error::Tree)?;
+      }
+    }
+    Ok(())
   }
 
   pub fn iter_properties(&self) -> impl Iterator<Item = &AttrRef> {
@@ -307,16 +398,6 @@ impl NodeRef {
       .collect()
   }
 
-  /// Alias for `get_properties`
-  pub fn get_attributes(&self) -> HashMap<&str, Option<XmlString>> {
-    self.get_properties()
-  }
-
-  /// Alias for `get_properties_ns`
-  pub fn get_attributes_ns(&self) -> HashMap<(&str, Option<&NamespaceRef>), Option<XmlString>> {
-    self.get_properties_ns()
-  }
-
   /// Check if a property has been defined, without allocating its value
   pub fn has_property(&self, name: &str) -> bool {
     self.get_property_node(name).is_some()
@@ -330,21 +411,6 @@ impl NodeRef {
   /// Check if property `name` with no namespace exists
   pub fn has_property_no_ns(&self, name: &str) -> bool {
     self.get_property_node_no_ns(name).is_some()
-  }
-
-  /// Alias for has_property
-  pub fn has_attribute(&self, name: &str) -> bool {
-    self.has_property(name)
-  }
-
-  /// Alias for has_property_ns
-  pub fn has_attribute_ns(&self, name: &str, ns: &str) -> bool {
-    self.has_property_ns(name, ns)
-  }
-
-  /// Alias for has_property_no_ns
-  pub fn has_attribute_no_ns(&self, name: &str) -> bool {
-    self.has_property_no_ns(name)
   }
 
   /// Gets the active namespace associated to this node

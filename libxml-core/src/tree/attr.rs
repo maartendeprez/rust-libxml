@@ -2,7 +2,11 @@ use std::ops::{Deref, DerefMut};
 
 use libxml_sys::bindings::{xmlAttr, xmlChar, xmlFreeProp};
 
-use crate::{macros::define_wrapper_types, string::str_from_xml_str, tree::NamespaceRef};
+use crate::{
+  macros::define_wrapper_types,
+  string::str_from_xml_str,
+  tree::{NamespaceRef, NodeType},
+};
 
 define_wrapper_types!(attr, Attr, AttrRef, xmlAttr);
 
@@ -15,6 +19,11 @@ impl Drop for Attr {
 }
 
 impl AttrRef {
+  /// Get the node type
+  pub fn get_type(&self) -> Option<NodeType> {
+    NodeType::from_int(self.0.type_)
+  }
+
   pub fn get_next(&self) -> Option<&Self> {
     unsafe { Self::maybe_from_ptr(self.0.next) }
   }
